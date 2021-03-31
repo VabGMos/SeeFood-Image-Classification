@@ -49,8 +49,7 @@ def get_batch(size):
     paths = random.sample(list(image_paths), size)
     X = [np.asarray(Image.open(p)) for p in paths]
     Y = [label_dict[get_label(p)] for p in paths]
-    return X, y
-
+    return X, Y
 #Image.fromarray(X[0])
 # %%
 #image transforming/ preprocessing, takes in images in the form of arrays for 
@@ -116,7 +115,7 @@ def norm_images(image_arrs):
     return ims
 # %%
 #run small test
-X, y = get_batch(10000)
+X, y = get_batch(20200)
 X = train_preprocess(X)
 X = simple_normalize(X)
 X = norm_images(X)
@@ -127,7 +126,7 @@ X_train, X_test, y_train, y_test = np.array(X_train), np.array(X_test), np.array
 # %%
 
 # create basic neural network
-
+"""
 model = models.Sequential()
 model.add(layers.Conv2D(100, (3,3), activation = 'relu', input_shape = (32, 32, 3)))
 model.add(layers.MaxPooling2D((2,2)))
@@ -160,3 +159,118 @@ plt.ylim([0, 1])
 plt.legend(loc='lower right')
 
 test_loss, test_acc = model.evaluate(test_images,  test_labels, verbose=2)
+"""
+#%%
+
+
+from keras.utils import np_utils
+import keras.callbacks as cb
+from keras.models import Sequential
+from keras import layers
+from keras.layers import Dense, Dropout, Activation, Conv2D, MaxPooling2D, MaxPooling3D
+from keras.optimizers import RMSprop
+
+
+
+import matplotlib
+import matplotlib.pyplot as plt
+# %%
+#getting batch and preprocessing it
+X, y = get_batch(20200)
+X = train_preprocess(X)
+X = simple_normalize(X)
+X = norm_images(X)
+#%%
+#test_train_split
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = 0.25, random_state = 42)
+X_train, X_test, y_train, y_test = np.array(X_train), np.array(X_test), np.array(y_train), np.array(y_test)
+y_train = np_utils.to_categorical(y_train, len(set(y)))
+y_test = np_utils.to_categorical(y_test, len(set(y)))
+# %%
+#reshape
+def init_model1():
+    start_time = time.time()
+
+    print("Compiling Model")
+    model = Sequential()
+    model.add(Dense(50, input_shape=(32, 32, 3)))
+    model.add(Activation('relu'))
+    model.add(Dropout(0.5))
+
+    model.add(layers.Flatten())
+ 
+    model.add(Dense(len(set(y))))
+    model.add(Activation('softmax'))
+
+    rms = RMSprop()
+    model.compile(loss='categorical_crossentropy', optimizer=rms, metrics=['accuracy'])
+    
+    print("Model finished "+format(time.time() - start_time))
+    return model
+
+# %%
+def run_network(data=None, model=None, epochs=20, cnn=False):
+    try:
+        start_time = time.time()
+
+        print("Training model")
+        history = model.fit(X_train, y_train, epochs=epochs, 
+                  validation_data=(X_test, y_test), verbose=2)
+
+        print("Training duration:"+format(time.time() - start_time))
+        score = model.evaluate(X_test, y_test)
+
+        print("\nNetwork's test loss and accuracy:"+format(score))
+        return history
+    except KeyboardInterrupt:
+        print("KeyboardInterrupt")
+        return history
+
+    
+def plot_losses(hist):
+    plt.plot(hist.history['loss'])
+    plt.plot(hist.history['val_loss'])
+    plt.title('Model loss')
+    plt.ylabel('Loss')
+    plt.xlabel('Epoch')
+    plt.legend(['Train', 'Test'], loc='upper right')
+    plt.show()
+
+# %%
+model1 = init_model1()
+
+history1 = run_network(model = model1, epochs=100)
+
+plot_losses(history1)
+# %%
+def init_model_cnn(): 
+    print("Compiling Model")
+    model = Sequential()
+    
+    model.add(layers.Conv2D(200, (3,3), input_shape=(32, 32, 3)))
+    model.add(Activation('relu'))
+    model.add(MaxPooling2D(pool_size=(2, 2)))
+    
+    model.add(layers.Conv2D(100, (3,3)))
+    model.add(Activation('relu'))
+    model.add(MaxPooling2D(pool_size=(2, 2)))
+        
+    model.add(layers.Flatten())
+
+    model.add(layers.Dense(128))
+    model.add(Activation('relu'))
+    
+    model.add(layers.Dense(len(set(y))))
+    model.add(Activation('softmax'))
+
+    rms = RMSprop()
+    model.compile(loss='categorical_crossentropy', optimizer=rms, metrics=['accuracy'])
+
+    return model
+# %%
+model2 = init_model_cnn()
+
+history2 = run_network(model = model2, epochs=100)
+
+plot_losses(history2)
+# %%
